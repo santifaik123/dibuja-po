@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  background: #2f6f6d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #2f6f6d;
+  color: #303030;
+  font-family:
+    Arial, Helvetica, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button:disabled,
+input:disabled {
+  cursor: not-allowed;
+}
+
+.scrollbar-thin {
+  scrollbar-color: rgba(100, 116, 139, 0.5) transparent;
+  scrollbar-width: thin;
+}
+
+.canvas-checker {
+  background:
+    radial-gradient(circle at center, #f6f6f6 0%, #d7d7d7 34%, #bfbfbf 70%, #b8b8b8 100%);
+}
+
+.classic-panel {
+  border: 6px solid #96962c;
+  border-radius: 28px;
+  box-shadow: 5px 6px 0 rgba(25, 65, 62, 0.9);
+}
+
+.classic-logo {
+  font-family: "Arial Black", Impact, Arial, sans-serif;
+  letter-spacing: 0;
+  -webkit-text-stroke: 2px #3c3c3c;
+  text-shadow:
+    0 3px 0 #3c3c3c,
+    0 5px 8px rgba(0, 0, 0, 0.4);
+}
+
+.classic-logo-mark {
+  -webkit-text-stroke: 2px #ffffff;
+  text-shadow:
+    0 3px 0 #3c3c3c,
+    0 5px 8px rgba(0, 0, 0, 0.45);
+}
