@@ -1,7 +1,7 @@
 "use client";
 
 import { Brush, Send } from "lucide-react";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useLayoutEffect, useRef, useState } from "react";
 import { MAX_CHAT_MESSAGE_LENGTH } from "@/lib/game/security";
 import type { ChatMessage, Player } from "@/lib/game/types";
 
@@ -24,11 +24,27 @@ export function ChatPanel({
 }) {
   const [message, setMessage] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
   const inputDisabled = disabled || isChoosing;
+  const lastMessageId = messages[messages.length - 1]?.id ?? "empty";
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages.length]);
+  useLayoutEffect(() => {
+    const scrollTarget = scrollRef.current;
+
+    if (!scrollTarget) {
+      return;
+    }
+
+    function scrollToBottom(target: HTMLDivElement) {
+      bottomRef.current?.scrollIntoView({ block: "end" });
+      target.scrollTop = target.scrollHeight;
+    }
+
+    scrollToBottom(scrollTarget);
+    const frame = window.requestAnimationFrame(() => scrollToBottom(scrollTarget));
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [lastMessageId]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,7 +76,11 @@ export function ChatPanel({
         </div>
       </div>
 
-      <div ref={scrollRef} className="scrollbar-thin min-h-0 flex-1 space-y-1.5 overflow-y-auto p-3">
+      <div
+        ref={scrollRef}
+        data-testid="chat-messages"
+        className="scrollbar-thin min-h-0 flex-1 space-y-1.5 overflow-y-auto p-3"
+      >
         {messages.length === 0 ? (
           <div className="mt-2 rounded border border-dashed border-slate-300 bg-slate-50 p-3 text-sm font-bold text-slate-500">
             Los mensajes y aciertos apareceran aqui.
@@ -68,6 +88,7 @@ export function ChatPanel({
         ) : (
           messages.map((chatMessage) => <ChatBubble key={chatMessage.id} message={chatMessage} />)
         )}
+        <div ref={bottomRef} aria-hidden="true" />
       </div>
 
       <form onSubmit={submit} className="border-t border-[#d8d28b] bg-white p-3">
