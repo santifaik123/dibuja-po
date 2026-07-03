@@ -10,6 +10,7 @@ export function ChatPanel({
   self,
   disabled,
   isDrawer,
+  isChoosing,
   drawerName,
   onSendMessage,
 }: {
@@ -17,11 +18,13 @@ export function ChatPanel({
   self: Player | null;
   disabled: boolean;
   isDrawer: boolean;
+  isChoosing: boolean;
   drawerName: string | null;
   onSendMessage: (message: string) => void;
 }) {
   const [message, setMessage] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const inputDisabled = disabled || isChoosing;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -31,7 +34,7 @@ export function ChatPanel({
     event.preventDefault();
     const clean = message.trim();
 
-    if (!clean || disabled) {
+    if (!clean || inputDisabled) {
       return;
     }
 
@@ -45,7 +48,11 @@ export function ChatPanel({
         <Brush className="h-5 w-5 shrink-0 rounded-full bg-gameOrange p-0.5 text-white" />
         <div className="min-w-0">
           <h2 className="truncate text-2xl font-black text-gameOrange">
-            {drawerName ? `${drawerName} va a dibujar` : "Esperando dibujante"}
+            {drawerName
+              ? isChoosing
+                ? `${drawerName} elige palabra`
+                : `${drawerName} va a dibujar`
+              : "Esperando dibujante"}
           </h2>
           <p className="text-xs font-bold text-slate-500">
             {self ? `Tu nick: ${self.nickname}` : "Conectando jugador..."}
@@ -69,11 +76,13 @@ export function ChatPanel({
             value={message}
             onChange={(event) => setMessage(event.target.value.slice(0, MAX_CHAT_MESSAGE_LENGTH))}
             maxLength={MAX_CHAT_MESSAGE_LENGTH}
-            disabled={disabled}
+            disabled={inputDisabled}
             placeholder={
-              disabled
+              inputDisabled && !isChoosing
                 ? "Espera conexion..."
-                : isDrawer
+                : isChoosing
+                  ? "Espera que el dibujante elija..."
+                  : isDrawer
                   ? "Puedes chatear, pero no soplar la palabra."
                   : "Escribe tu respuesta..."
             }
@@ -81,7 +90,7 @@ export function ChatPanel({
           />
           <button
             type="submit"
-            disabled={disabled || !message.trim()}
+            disabled={inputDisabled || !message.trim()}
             className="inline-flex h-8 w-9 shrink-0 items-center justify-center rounded bg-gameOrange text-white transition hover:bg-[#d6551f] disabled:bg-slate-200 disabled:text-slate-500"
             title="Enviar"
           >

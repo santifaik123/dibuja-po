@@ -160,3 +160,22 @@ export function pickRandomWord(excludedWords: string[] = []): WordEntry {
 
   return pool[Math.floor(Math.random() * pool.length)];
 }
+
+export function pickWordChoices(count: number, excludedWords: string[] = []): WordEntry[] {
+  const excluded = new Set(excludedWords.map((word) => word.toLowerCase()));
+  const primaryPool = WORDS.filter((entry) => !excluded.has(entry.word.toLowerCase()));
+  const pool = primaryPool.length >= count ? primaryPool : WORDS;
+  const choices: WordEntry[] = [];
+  const used = new Set<string>();
+
+  while (choices.length < count && used.size < pool.length) {
+    const candidate = pool[Math.floor(Math.random() * pool.length)];
+
+    if (!used.has(candidate.word)) {
+      choices.push(candidate);
+      used.add(candidate.word);
+    }
+  }
+
+  return choices;
+}

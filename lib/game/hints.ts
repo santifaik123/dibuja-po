@@ -1,7 +1,8 @@
 const LETTER_REGEX = /\p{L}|\p{N}/u;
 
 export function createHint(word: string, elapsedSeconds: number): string {
-  const revealRatio = elapsedSeconds >= 55 ? 0.34 : elapsedSeconds >= 30 ? 0.18 : 0;
+  const revealRatio =
+    elapsedSeconds >= 65 ? 0.48 : elapsedSeconds >= 50 ? 0.32 : elapsedSeconds >= 30 ? 0.16 : 0;
   const letterPositions = Array.from(word)
     .map((character, index) => ({ character, index }))
     .filter(({ character }) => LETTER_REGEX.test(character));
@@ -19,7 +20,11 @@ export function createHint(word: string, elapsedSeconds: number): string {
         return character === " " ? " " : character;
       }
 
-      return revealed.has(index) ? character : "_";
+      return revealed.has(index) ? character : "•";
     })
     .join("");
+}
+
+export function createCensoredHint(word: string): string {
+  return createHint(word, 0);
 }

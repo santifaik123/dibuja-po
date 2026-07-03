@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { createHint } from "./hints";
+import { createCensoredHint, createHint } from "./hints";
 import { isCorrectGuess, isNearGuess, normalizeAnswer } from "./normalizeAnswer";
 import { DRAWER_BONUS, pointsForGuess, scoreForGuess } from "./scoring";
 import {
@@ -24,9 +24,11 @@ import type {
   RoundStatus,
   ScoreEvent,
 } from "./types";
-import { pickRandomWord } from "./words";
+import { pickWordChoices } from "./words";
 
 const ROUND_SECONDS = 80;
+const CHOOSE_SECONDS = 15;
+const WORD_CHOICE_COUNT = 3;
 const MAX_CHAT_MESSAGES = 120;
 const MAX_DRAW_EVENTS = 2500;
 const CHAT_WINDOW_MS = 5000;
@@ -268,8 +270,52 @@ export class RoomManager {
     this.beginRoundAt(room, next.index, nextRoundNumber);
   }
 
-  endRound(room: Room, status: Exclude<RoundStatus, "waiting" | "drawing">): boolean {
-    if (room.state !== "playing" || room.currentRound.status !== "drawing") {
+  chooseWord(room: Room, playerId: string, wordInput: string): void {
+    if (room.state !== "playing" || room.currentRound.status !== "choosing") {
+      throw new Error("No hay palabras para elegir ahora.");
+    }
+
+    if (room.currentRound.drawerId !== playerId) {
+      throw new Error("Solo el dibujante puede elegir la palabra.");
+    }
+
+    const normalizedWord = normalizeAnswer(wordInput);
+    const chosenWord = room.currentRound.wordChoices.find(
+      (candidate) => normalizeAnswer(candidate.word) === normalizedWord,
+    );
+
+    if (!chosenWord) {
+      throw new Error("Esa palabra no esta disponible.");
+    }
+
+    this.startDrawingWithWord(room, chosenWord);
+  }
+
+  autoChooseWord(room: Room): void {
+    if (room.state !== "playing" || room.currentRound.status !== "choosing") {
+      return;
+    }
+
+    const fallback = room.currentRound.wordChoices[0];
+
+    if (fallback) {
+      this.startDrawingWithWord(room, fallback);
+    } else {
+      this.pauseGame(room, "No hay palabras disponibles.");
+    }
+  }
+
+  endRound(room: Room, status: Exclude<RoundStatus, "waiting" | "choosing" | "drawing">): boolean {
+    const wasChoosing = room.currentRound.status === "choosing";
+
+    if (
+      room.state !== "playing" ||
+      (room.currentRound.status !== "drawing" && !wasChoosing)
+    ) {
+      return false;
+    }
+
+    if (wasChoosing && status !== "drawer_left" && status !== "skipped") {
       return false;
     }
 
@@ -279,6 +325,7 @@ export class RoomManager {
     room.currentRound.revealedWord = word || null;
     room.timeRemaining = 0;
     room.hint = word;
+    room.currentRound.wordChoices = [];
 
     if (word) {
       this.addSystemMessage(room, `La palabra era: ${word}.`);
@@ -290,14 +337,17 @@ export class RoomManager {
   }
 
   updateTimer(room: Room, remainingSeconds: number): void {
-    if (room.state !== "playing" || room.currentRound.status !== "drawing") {
+    if (
+      room.state !== "playing" ||
+      (room.currentRound.status !== "drawing" && room.currentRound.status !== "choosing")
+    ) {
       return;
     }
 
     const word = room.currentRound.word?.word;
     room.timeRemaining = Math.max(0, remainingSeconds);
 
-    if (word) {
+    if (room.currentRound.status === "drawing" && word) {
       room.hint = createHint(word, ROUND_SECONDS - room.timeRemaining);
     }
 
@@ -440,6 +490,9 @@ export class RoomManager {
         ...room.currentRound,
         guessedPlayerIds: [...room.currentRound.guessedPlayerIds],
         word: isViewerDrawer ? room.currentRound.word : null,
+        wordChoices: isViewerDrawer && room.currentRound.status === "choosing"
+          ? [...room.currentRound.wordChoices]
+          : [],
       },
       timeRemaining: room.timeRemaining,
       hint: room.hint,
@@ -526,36 +579,60 @@ export class RoomManager {
 
     const drawer = room.players.find((player) => player.id === next.playerId);
     const usedWords = this.usedWords.get(room.code) ?? [];
-    const word = pickRandomWord(usedWords);
-    const updatedUsedWords = [...usedWords, word.word].slice(-80);
+    const wordChoices = pickWordChoices(WORD_CHOICE_COUNT, usedWords);
 
     if (!drawer) {
       this.pauseGame(room, "No hay dibujante disponible.");
       return;
     }
 
-    this.usedWords.set(room.code, updatedUsedWords);
     room.players.forEach((player) => {
       player.hasGuessedCurrentRound = false;
     });
     room.drawEvents = [];
-    room.timeRemaining = ROUND_SECONDS;
-    room.hint = createHint(word.word, 0);
+    room.timeRemaining = CHOOSE_SECONDS;
+    room.hint = "";
     room.currentRound = {
       id: randomUUID(),
       number: roundNumber,
       turnIndex: next.index,
       drawerId: drawer.id,
-      word,
-      status: "drawing",
+      word: null,
+      wordChoices,
+      status: "choosing",
       startedAt: Date.now(),
-      endsAt: Date.now() + ROUND_SECONDS * 1000,
+      endsAt: Date.now() + CHOOSE_SECONDS * 1000,
       revealedWord: null,
       guessedPlayerIds: [],
       drawerAwarded: false,
     };
     room.updatedAt = Date.now();
-    this.addSystemMessage(room, `Nueva ronda: ${drawer.nickname} esta dibujando.`);
+    this.addSystemMessage(room, `${drawer.nickname} esta eligiendo palabra.`);
+  }
+
+  private startDrawingWithWord(room: Room, word: Room["currentRound"]["word"]): void {
+    if (!word) {
+      this.pauseGame(room, "No hay palabra disponible.");
+      return;
+    }
+
+    const usedWords = this.usedWords.get(room.code) ?? [];
+    this.usedWords.set(room.code, [...usedWords, word.word].slice(-80));
+    room.drawEvents = [];
+    room.timeRemaining = ROUND_SECONDS;
+    room.hint = createCensoredHint(word.word);
+    room.currentRound.word = word;
+    room.currentRound.wordChoices = [];
+    room.currentRound.status = "drawing";
+    room.currentRound.startedAt = Date.now();
+    room.currentRound.endsAt = Date.now() + ROUND_SECONDS * 1000;
+    room.currentRound.revealedWord = null;
+    room.currentRound.guessedPlayerIds = [];
+    room.currentRound.drawerAwarded = false;
+    room.updatedAt = Date.now();
+
+    const drawer = room.players.find((player) => player.id === room.currentRound.drawerId);
+    this.addSystemMessage(room, `Nueva ronda: ${drawer?.nickname ?? "Alguien"} esta dibujando.`);
   }
 
   private findNextConnectedTurn(
@@ -691,6 +768,7 @@ function createEmptyRound(): Round {
     turnIndex: 0,
     drawerId: null,
     word: null,
+    wordChoices: [],
     status: "waiting",
     startedAt: null,
     endsAt: null,

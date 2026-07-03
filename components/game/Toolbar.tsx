@@ -3,8 +3,11 @@ import type { DrawMode } from "@/lib/game/types";
 
 const COLORS = [
   { label: "Negro", value: "#111827" },
+  { label: "Gris", value: "#6b7280" },
   { label: "Rojo", value: "#ef4444" },
+  { label: "Naranjo", value: "#f97316" },
   { label: "Azul", value: "#2563eb" },
+  { label: "Celeste", value: "#38bdf8" },
   { label: "Verde", value: "#16a34a" },
   { label: "Amarillo", value: "#facc15" },
   { label: "Cafe", value: "#7c4a28" },
@@ -14,9 +17,11 @@ const COLORS = [
 ];
 
 const SIZES = [
-  { label: "Fino", value: 3 },
-  { label: "Medio", value: 8 },
-  { label: "Grueso", value: 16 },
+  { label: "XS", value: 2 },
+  { label: "S", value: 5 },
+  { label: "M", value: 9 },
+  { label: "L", value: 14 },
+  { label: "XL", value: 22 },
 ];
 
 export function Toolbar({
@@ -97,6 +102,20 @@ export function Toolbar({
             </button>
           ))}
         </div>
+
+        <label className="flex items-center gap-2 rounded border border-slate-300 bg-slate-100 px-2 py-1 text-xs font-black text-slate-700">
+          Trazo
+          <input
+            type="range"
+            min={1}
+            max={28}
+            value={size}
+            onChange={(event) => onSizeChange(Number(event.target.value))}
+            className="w-24 accent-gameOrange"
+            title="Grosor de trazo"
+          />
+          <span className="w-5 text-right">{size}</span>
+        </label>
 
         <button
           type="button"

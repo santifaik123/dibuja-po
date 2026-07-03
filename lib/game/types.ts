@@ -2,6 +2,7 @@ export type RoomPhase = "lobby" | "playing" | "finished";
 
 export type RoundStatus =
   | "waiting"
+  | "choosing"
   | "drawing"
   | "guessed"
   | "timeout"
@@ -79,6 +80,7 @@ export interface Round {
   turnIndex: number;
   drawerId: string | null;
   word: WordEntry | null;
+  wordChoices: WordEntry[];
   status: RoundStatus;
   startedAt: number | null;
   endsAt: number | null;
@@ -137,6 +139,10 @@ export interface CreateRoomPayload {
 
 export interface ChatPayload {
   message: string;
+}
+
+export interface ChooseWordPayload {
+  word: string;
 }
 
 export interface DrawPayload {

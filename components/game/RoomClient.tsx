@@ -9,6 +9,7 @@ import { getSocket } from "@/lib/socket";
 import { ClassicTopBar } from "./ClassicTopBar";
 import { GameRoom } from "./GameRoom";
 import { Lobby } from "./Lobby";
+import { useGameSounds } from "./useGameSounds";
 
 const SESSION_KEY = "dibuja-po-session";
 
@@ -27,6 +28,7 @@ export function RoomClient({ roomCode }: { roomCode: string }) {
   const [error, setError] = useState("");
   const [connectionLabel, setConnectionLabel] = useState("Conectando...");
   const [joining, setJoining] = useState(false);
+  useGameSounds(room);
 
   const joinRoom = useCallback(
     async (nicknameValue: string, existingPlayerId?: string | null) => {
@@ -148,6 +150,15 @@ export function RoomClient({ roomCode }: { roomCode: string }) {
     }
   }
 
+  async function chooseWord(word: string) {
+    setError("");
+    const response = await emitWithAck(getSocket(), "choose_word", { word });
+
+    if (!response.ok) {
+      setError(response.error ?? "No se pudo elegir la palabra.");
+    }
+  }
+
   if (!room && !playerId) {
     return (
       <main className="min-h-screen bg-gameBg text-ink">
@@ -229,6 +240,7 @@ export function RoomClient({ roomCode }: { roomCode: string }) {
       error={error}
       onLeaveRoom={leaveRoom}
       onNextRound={nextRound}
+      onChooseWord={chooseWord}
       onSendChatMessage={sendChatMessage}
     />
   );

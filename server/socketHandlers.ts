@@ -2,6 +2,7 @@ import type { Server, Socket } from "socket.io";
 import { RoomManager } from "../lib/game/roomManager";
 import type {
   ChatPayload,
+  ChooseWordPayload,
   CreateRoomPayload,
   DrawPayload,
   JoinRoomPayload,
@@ -130,6 +131,24 @@ export function registerSocketHandlers(io: Server): void {
       }
     });
 
+    socket.on("choose_word", (payload: ChooseWordPayload, ack?: Ack) => {
+      try {
+        const { room, player } = getSocketContext(socket);
+
+        manager.chooseWord(room, player.id, payload?.word ?? "");
+        io.to(room.code).emit("word_chosen", {
+          drawerId: room.currentRound.drawerId,
+          roundNumber: room.currentRound.number,
+        });
+        emitRoomState(io, room);
+        startRoundClock(io, room);
+        ackOk(ack, {});
+      } catch (error) {
+        emitError(socket, error);
+        ackError(ack, error);
+      }
+    });
+
     socket.on("draw_start", (payload: DrawPayload, ack?: Ack) => {
       handleDrawEvent(io, socket, "start", payload, ack);
     });
@@ -227,7 +246,10 @@ function handleDrawEvent(
 function startRoundClock(io: Server, room: Room): void {
   clearRoomTimers(room.code);
 
-  if (room.state !== "playing" || room.currentRound.status !== "drawing") {
+  if (
+    room.state !== "playing" ||
+    (room.currentRound.status !== "drawing" && room.currentRound.status !== "choosing")
+  ) {
     emitRoomState(io, room);
     return;
   }
@@ -239,7 +261,17 @@ function startRoundClock(io: Server, room: Room): void {
     manager.updateTimer(room, remainingSeconds);
     emitRoomState(io, room);
 
-    if (remainingSeconds <= 0) {
+    if (remainingSeconds <= 0 && room.currentRound.status === "choosing") {
+      manager.autoChooseWord(room);
+      io.to(room.code).emit("word_chosen", {
+        drawerId: room.currentRound.drawerId,
+        roundNumber: room.currentRound.number,
+      });
+      emitRoomState(io, room);
+      return;
+    }
+
+    if (remainingSeconds <= 0 && room.currentRound.status === "drawing") {
       finishRoundAndQueueNext(io, room, "timeout", 3600);
     }
   }, 1000);

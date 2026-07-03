@@ -34,6 +34,10 @@ describe("RoomManager", () => {
     const drawer = created.room.players.find(
       (player) => player.id === created.room.currentRound.drawerId,
     );
+    const choice = created.room.currentRound.wordChoices[0]?.word ?? "";
+
+    manager.chooseWord(created.room, drawer?.id ?? "", choice);
+
     const guesser = drawer?.id === created.player.id ? joined.player : created.player;
     const word = created.room.currentRound.word?.word;
 
@@ -57,6 +61,10 @@ describe("RoomManager", () => {
     const drawer = created.room.players.find(
       (player) => player.id === created.room.currentRound.drawerId,
     );
+    const choice = created.room.currentRound.wordChoices[0]?.word ?? "";
+
+    manager.chooseWord(created.room, drawer?.id ?? "", choice);
+
     const word = created.room.currentRound.word?.word;
     const result = manager.addChatMessage(created.room, drawer?.id ?? "", word ?? "");
 
@@ -91,5 +99,22 @@ describe("RoomManager", () => {
 
     expect(result.roomDeleted).toBe(false);
     expect(result.drawerLeft).toBe(true);
+  });
+
+  it("starts rounds with word choices visible only to the drawer", () => {
+    const manager = new RoomManager();
+    const created = manager.createRoom("Santi", "socket-1");
+    const joined = manager.joinRoom(created.room.code, "Cami", "socket-2");
+
+    manager.startGame(created.room, created.player.id);
+
+    const drawerId = created.room.currentRound.drawerId;
+    const drawerState = manager.toClientState(created.room, drawerId);
+    const guesserState = manager.toClientState(created.room, joined.player.id);
+
+    expect(created.room.currentRound.status).toBe("choosing");
+    expect(drawerState.currentRound.wordChoices).toHaveLength(3);
+    expect(guesserState.currentRound.wordChoices).toHaveLength(0);
+    expect(guesserState.currentRound.word).toBeNull();
   });
 });

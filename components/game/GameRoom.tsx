@@ -13,6 +13,7 @@ export function GameRoom({
   error,
   onLeaveRoom,
   onNextRound,
+  onChooseWord,
   onSendChatMessage,
 }: {
   room: ClientRoomState;
@@ -21,6 +22,7 @@ export function GameRoom({
   error: string;
   onLeaveRoom: () => void;
   onNextRound: () => void;
+  onChooseWord: (word: string) => void;
   onSendChatMessage: (message: string) => void;
 }) {
   const isDrawer = Boolean(self && room.currentRound.drawerId === self.id);
@@ -29,11 +31,16 @@ export function GameRoom({
   const visibleWord = room.currentRound.word?.word;
   const revealedWord = room.currentRound.revealedWord;
   const roomNumber = room.code.replace(/^CL-/, "");
-  const promptLabel = isDrawer
-    ? visibleWord
-    : revealedWord
-      ? revealedWord
-      : room.hint || "?";
+  const promptLabel =
+    room.currentRound.status === "choosing"
+      ? isDrawer
+        ? "elige"
+        : "espera"
+      : isDrawer
+        ? visibleWord
+        : revealedWord
+          ? revealedWord
+          : room.hint || "?";
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-gameBg text-ink">
@@ -91,8 +98,8 @@ export function GameRoom({
                   <div className="mt-1 text-[10px] font-black uppercase text-white/85 sm:hidden">
                     Ronda {room.currentRound.number || 1}
                   </div>
-                  <div className="mx-auto mt-1 h-11 max-w-[250px] rounded-t-2xl bg-gameRedDark text-4xl font-black leading-10 text-gameYellow sm:mt-2">
-                    {promptLabel ? "?" : ""}
+                  <div className="mx-auto mt-1 flex h-11 max-w-[280px] items-center justify-center rounded-t-2xl bg-gameRedDark px-3 font-mono text-2xl font-black leading-10 text-gameYellow sm:mt-2 sm:text-3xl">
+                    <span className="truncate">{promptLabel}</span>
                   </div>
                 </div>
                 <div className="hidden sm:block">
@@ -101,15 +108,19 @@ export function GameRoom({
                   </div>
                   <div className="mt-2 text-xs font-black uppercase text-white/85">
                     {isDrawer
-                      ? `Palabra: ${visibleWord ?? ""}`
+                      ? room.currentRound.status === "choosing"
+                        ? "Elige una palabra"
+                        : `Palabra: ${visibleWord ?? ""}`
                       : drawer
-                        ? `${drawer.nickname} dibuja`
+                        ? room.currentRound.status === "choosing"
+                          ? `${drawer.nickname} elige palabra`
+                          : `${drawer.nickname} dibuja`
                         : "Esperando dibujante"}
                   </div>
                 </div>
               </div>
             </div>
-            <DrawingCanvas room={room} self={self} />
+            <DrawingCanvas room={room} self={self} onChooseWord={onChooseWord} />
           </section>
 
           <ChatPanel
@@ -117,6 +128,7 @@ export function GameRoom({
             self={self}
             disabled={!self?.isConnected}
             isDrawer={isDrawer}
+            isChoosing={room.currentRound.status === "choosing"}
             drawerName={drawer?.nickname ?? null}
             onSendMessage={onSendChatMessage}
           />
@@ -143,7 +155,9 @@ function RoundFeedback({ room }: { room: ClientRoomState }) {
   }
 
   const copy =
-    status === "guessed"
+    status === "choosing"
+      ? "El dibujante esta eligiendo palabra..."
+      : status === "guessed"
       ? `${lastCorrect?.nickname ?? "Alguien"} adivino. Siguiente ronda...`
       : status === "timeout"
         ? `La palabra era: ${room.currentRound.revealedWord ?? ""}. Siguiente ronda...`

@@ -3,11 +3,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pencil } from "lucide-react";
 import type { Socket } from "socket.io-client";
-import type { ClientRoomState, DrawEvent, DrawMode, DrawPoint, Player } from "@/lib/game/types";
+import type {
+  ClientRoomState,
+  DrawEvent,
+  DrawMode,
+  DrawPoint,
+  Player,
+  WordEntry,
+} from "@/lib/game/types";
 import { getSocket } from "@/lib/socket";
 import { Toolbar } from "./Toolbar";
 
-export function DrawingCanvas({ room, self }: { room: ClientRoomState; self: Player | null }) {
+export function DrawingCanvas({
+  room,
+  self,
+  onChooseWord,
+}: {
+  room: ClientRoomState;
+  self: Player | null;
+  onChooseWord: (word: string) => void;
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const lastRemotePointsRef = useRef(new Map<string, DrawPoint>());
   const lastLocalPointRef = useRef<DrawPoint | null>(null);
@@ -17,12 +32,15 @@ export function DrawingCanvas({ room, self }: { room: ClientRoomState; self: Pla
   const [color, setColor] = useState("#111827");
   const [size, setSize] = useState(8);
   const [mode, setMode] = useState<DrawMode>("draw");
+  const [hasVisibleDrawing, setHasVisibleDrawing] = useState(false);
   const socket = useMemo(() => getSocket(), []);
   const canDraw =
     Boolean(self && room.currentRound.drawerId === self.id) &&
     room.currentRound.status === "drawing";
+  const isChoosing = room.currentRound.status === "choosing";
+  const isChoosingDrawer = Boolean(self && room.currentRound.drawerId === self.id) && isChoosing;
   const drawer = room.players.find((player) => player.id === room.currentRound.drawerId);
-  const showCenterHint = room.currentRound.status === "drawing" && room.drawEvents.length === 0;
+  const showCenterHint = room.currentRound.status === "drawing" && !hasVisibleDrawing;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -39,6 +57,7 @@ export function DrawingCanvas({ room, self }: { room: ClientRoomState; self: Pla
     }
 
     resize();
+    setHasVisibleDrawing(room.drawEvents.some((event) => event.type !== "end"));
     const observer = new ResizeObserver(resize);
     observer.observe(target);
 
@@ -57,6 +76,10 @@ export function DrawingCanvas({ room, self }: { room: ClientRoomState; self: Pla
         return;
       }
 
+      if (event.type !== "end") {
+        setHasVisibleDrawing(true);
+      }
+
       applyDrawEvent(canvas, event, lastRemotePointsRef.current);
     }
 
@@ -69,6 +92,7 @@ export function DrawingCanvas({ room, self }: { room: ClientRoomState; self: Pla
 
       lastRemotePointsRef.current.clear();
       lastLocalPointRef.current = null;
+      setHasVisibleDrawing(false);
     }
 
     socket.on("draw_event", handleDrawEvent);
@@ -96,6 +120,7 @@ export function DrawingCanvas({ room, self }: { room: ClientRoomState; self: Pla
     const point = pointFromPointer(event);
     isDrawingRef.current = true;
     lastLocalPointRef.current = point;
+    setHasVisibleDrawing(true);
     drawDot(event.currentTarget, point, color, size, mode);
     emitDraw(socket, "draw_start", point, color, size, mode);
   }
@@ -171,7 +196,23 @@ export function DrawingCanvas({ room, self }: { room: ClientRoomState; self: Pla
             </div>
           </div>
         ) : null}
-        {room.currentRound.status !== "drawing" ? (
+        {isChoosing ? (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/55 p-4">
+            {isChoosingDrawer ? (
+              <WordChooser choices={room.currentRound.wordChoices} onChooseWord={onChooseWord} />
+            ) : (
+              <div className="rounded-lg border-4 border-gameBorder bg-gameCream px-5 py-4 text-center shadow-game">
+                <div className="text-xl font-black uppercase text-[#5c5c1f]">
+                  {drawer?.nickname ?? "El dibujante"} esta eligiendo
+                </div>
+                <div className="mt-1 text-sm font-bold text-slate-600">
+                  La pista censurada aparece al empezar el dibujo.
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
+        {room.currentRound.status !== "drawing" && !isChoosing ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white/25">
             <div className="rounded-lg bg-gameCream px-5 py-3 text-xl font-black uppercase text-[#5c5c1f] shadow-game">
               Siguiente ronda...
@@ -194,6 +235,50 @@ export function DrawingCanvas({ room, self }: { room: ClientRoomState; self: Pla
         ) : null}
       </div>
     </section>
+  );
+}
+
+function WordChooser({
+  choices,
+  onChooseWord,
+}: {
+  choices: WordEntry[];
+  onChooseWord: (word: string) => void;
+}) {
+  if (choices.length === 0) {
+    return (
+      <div className="rounded-lg border-4 border-gameBorder bg-white px-5 py-4 text-center text-sm font-black text-slate-700 shadow-game">
+        Cargando palabras...
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-[520px] rounded-lg border-4 border-gameBorder bg-white p-4 shadow-game">
+      <div className="text-center">
+        <h2 className="text-2xl font-black uppercase text-gameOrange">Elige palabra</h2>
+        <p className="mt-1 text-sm font-bold text-slate-600">
+          Los demas veran solo el largo censurado.
+        </p>
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        {choices.map((choice) => (
+          <button
+            key={choice.word}
+            type="button"
+            onClick={() => onChooseWord(choice.word)}
+            className="rounded-lg border-4 border-gameBorder bg-gameCream px-3 py-4 text-center transition hover:-translate-y-0.5 hover:bg-gameYellow"
+          >
+            <span className="block truncate text-xl font-black uppercase text-[#333]">
+              {choice.word}
+            </span>
+            <span className="mt-1 block text-xs font-black uppercase text-[#5c5c1f]">
+              {choice.word.length} letras
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
