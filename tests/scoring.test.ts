@@ -1,13 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { DRAWER_BONUS, pointsForGuess, scoreForGuess } from "@/lib/game/scoring";
+import { drawerBonusForGuess, pointsForGuess, scoreForGuess } from "@/lib/game/scoring";
 
 describe("scoring", () => {
-  it("scores guesses by order and caps drawer bonus constant", () => {
-    expect(scoreForGuess(0)).toBe(100);
-    expect(scoreForGuess(1)).toBe(70);
-    expect(scoreForGuess(2)).toBe(50);
-    expect(scoreForGuess(8)).toBe(50);
-    expect(DRAWER_BONUS).toBe(50);
+  it("scores guesses by order and remaining time", () => {
+    expect(scoreForGuess(0, 80, 80)).toBe(100);
+    expect(scoreForGuess(1, 80, 80)).toBe(70);
+    expect(scoreForGuess(2, 80, 80)).toBe(50);
+    expect(scoreForGuess(8, 80, 80)).toBe(50);
+    expect(scoreForGuess(0, 40, 80)).toBe(75);
+    expect(scoreForGuess(0, 0, 80)).toBe(50);
+  });
+
+  it("gives the drawer a bonus based on the guess score", () => {
+    expect(drawerBonusForGuess(100)).toBe(40);
+    expect(drawerBonusForGuess(70)).toBe(30);
+    expect(drawerBonusForGuess(25)).toBe(15);
   });
 
   it("names score event reasons", () => {

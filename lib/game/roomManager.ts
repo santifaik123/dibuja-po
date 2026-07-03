@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createCensoredHint, createHint } from "./hints";
 import { isCorrectGuess, isNearGuess, normalizeAnswer } from "./normalizeAnswer";
-import { DRAWER_BONUS, pointsForGuess, scoreForGuess } from "./scoring";
+import { drawerBonusForGuess, pointsForGuess, scoreForGuess } from "./scoring";
 import {
   MAX_CHAT_MESSAGE_LENGTH,
   normalizeRoomCode,
@@ -527,28 +527,28 @@ export class RoomManager {
 
   private handleCorrectGuess(room: Room, player: Player): ChatResult {
     const guessIndex = room.currentRound.guessedPlayerIds.length;
-    const points = scoreForGuess(guessIndex);
+    const points = scoreForGuess(guessIndex, room.timeRemaining, ROUND_SECONDS);
     const reason = pointsForGuess(guessIndex);
     const scoreEvents: ScoreEvent[] = [{ playerId: player.id, points, reason }];
     const drawer = room.players.find((candidate) => candidate.id === room.currentRound.drawerId);
+    const drawerBonus = drawerBonusForGuess(points);
 
     player.score += points;
     player.hasGuessedCurrentRound = true;
     room.currentRound.guessedPlayerIds.push(player.id);
 
-    if (drawer && !room.currentRound.drawerAwarded) {
-      drawer.score += DRAWER_BONUS;
-      room.currentRound.drawerAwarded = true;
+    if (drawer) {
+      drawer.score += drawerBonus;
       scoreEvents.push({
         playerId: drawer.id,
-        points: DRAWER_BONUS,
+        points: drawerBonus,
         reason: "drawer_bonus",
       });
     }
 
     const message = this.pushMessage(room, {
       kind: "correct",
-      text: `${player.nickname} adivino la palabra.`,
+      text: `${player.nickname} adivino la palabra. +${points}`,
       playerId: player.id,
       nickname: player.nickname,
     });
@@ -604,7 +604,6 @@ export class RoomManager {
       endsAt: Date.now() + CHOOSE_SECONDS * 1000,
       revealedWord: null,
       guessedPlayerIds: [],
-      drawerAwarded: false,
     };
     room.updatedAt = Date.now();
     this.addSystemMessage(room, `${drawer.nickname} esta eligiendo palabra.`);
@@ -628,7 +627,6 @@ export class RoomManager {
     room.currentRound.endsAt = Date.now() + ROUND_SECONDS * 1000;
     room.currentRound.revealedWord = null;
     room.currentRound.guessedPlayerIds = [];
-    room.currentRound.drawerAwarded = false;
     room.updatedAt = Date.now();
 
     const drawer = room.players.find((player) => player.id === room.currentRound.drawerId);
@@ -774,7 +772,6 @@ function createEmptyRound(): Round {
     endsAt: null,
     revealedWord: null,
     guessedPlayerIds: [],
-    drawerAwarded: false,
   };
 }
 

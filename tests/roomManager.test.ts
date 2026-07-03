@@ -24,7 +24,7 @@ describe("RoomManager", () => {
     );
   });
 
-  it("starts a game, scores a correct guess and gives one drawer bonus", () => {
+  it("starts a game, scores a correct guess and gives drawer bonus", () => {
     const manager = new RoomManager();
     const created = manager.createRoom("Santi", "socket-1");
     const joined = manager.joinRoom(created.room.code, "Cami", "socket-2");
@@ -48,7 +48,41 @@ describe("RoomManager", () => {
     expect(result.accepted).toBe(true);
     expect(result.scoreEvents).toHaveLength(2);
     expect(guesser.score).toBe(100);
-    expect(drawer?.score).toBe(50);
+    expect(drawer?.score).toBe(40);
+  });
+
+  it("gives the drawer a bonus for every player who guesses", () => {
+    const manager = new RoomManager();
+    const created = manager.createRoom("Santi", "socket-1");
+    const joined = manager.joinRoom(created.room.code, "Cami", "socket-2");
+    const joinedSecond = manager.joinRoom(created.room.code, "Diego", "socket-3");
+
+    manager.startGame(created.room, created.player.id);
+
+    const drawer = created.room.players.find(
+      (player) => player.id === created.room.currentRound.drawerId,
+    );
+    const choice = created.room.currentRound.wordChoices[0]?.word ?? "";
+
+    manager.chooseWord(created.room, drawer?.id ?? "", choice);
+
+    const guessers = [created.player, joined.player, joinedSecond.player].filter(
+      (player) => player.id !== drawer?.id,
+    );
+    const word = created.room.currentRound.word?.word;
+
+    const firstResult = manager.addChatMessage(created.room, guessers[0].id, word ?? "");
+    const secondResult = manager.addChatMessage(created.room, guessers[1].id, word ?? "");
+
+    expect(firstResult.scoreEvents).toEqual([
+      { playerId: guessers[0].id, points: 100, reason: "first_guess" },
+      { playerId: drawer?.id, points: 40, reason: "drawer_bonus" },
+    ]);
+    expect(secondResult.scoreEvents).toEqual([
+      { playerId: guessers[1].id, points: 70, reason: "second_guess" },
+      { playerId: drawer?.id, points: 30, reason: "drawer_bonus" },
+    ]);
+    expect(drawer?.score).toBe(70);
   });
 
   it("does not allow the drawer to score by typing the answer", () => {

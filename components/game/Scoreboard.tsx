@@ -1,4 +1,5 @@
 import { Pencil } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { Player } from "@/lib/game/types";
 
 export function Scoreboard({
@@ -9,6 +10,50 @@ export function Scoreboard({
   drawerId?: string | null;
 }) {
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score || a.joinedAt - b.joinedAt);
+  const previousScoresRef = useRef<Map<string, number> | null>(null);
+  const hideDeltaTimeoutRef = useRef<number | null>(null);
+  const [scoreDeltas, setScoreDeltas] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const previousScores = previousScoresRef.current;
+    const nextScores = new Map(players.map((player) => [player.id, player.score]));
+
+    if (previousScores) {
+      const nextDeltas: Record<string, number> = {};
+
+      for (const player of players) {
+        const previousScore = previousScores.get(player.id) ?? player.score;
+        const delta = player.score - previousScore;
+
+        if (delta > 0) {
+          nextDeltas[player.id] = delta;
+        }
+      }
+
+      if (Object.keys(nextDeltas).length > 0) {
+        setScoreDeltas(nextDeltas);
+
+        if (hideDeltaTimeoutRef.current) {
+          window.clearTimeout(hideDeltaTimeoutRef.current);
+        }
+
+        hideDeltaTimeoutRef.current = window.setTimeout(() => {
+          setScoreDeltas({});
+          hideDeltaTimeoutRef.current = null;
+        }, 1800);
+      }
+    }
+
+    previousScoresRef.current = nextScores;
+  }, [players]);
+
+  useEffect(() => {
+    return () => {
+      if (hideDeltaTimeoutRef.current) {
+        window.clearTimeout(hideDeltaTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <section className="classic-panel min-h-[220px] overflow-hidden bg-panel lg:h-[calc(100vh-125px)] lg:max-h-[720px]">
@@ -33,7 +78,14 @@ export function Scoreboard({
                 {index + 1}
               </span>
               <div className="min-w-0">
-                <div className="text-base font-black leading-4 text-[#333]">{player.score}</div>
+                <div className="relative text-base font-black leading-4 text-[#333]">
+                  {player.score}
+                  {scoreDeltas[player.id] ? (
+                    <span className="absolute -right-1 -top-5 rounded bg-gameYellow px-1.5 py-0.5 text-xs font-black text-[#333] shadow-[0_2px_0_#9a9128]">
+                      +{scoreDeltas[player.id]}
+                    </span>
+                  ) : null}
+                </div>
                 <div
                   className={
                     index === 2

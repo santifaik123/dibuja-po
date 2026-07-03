@@ -86,7 +86,6 @@ export interface Round {
   endsAt: number | null;
   revealedWord: string | null;
   guessedPlayerIds: string[];
-  drawerAwarded: boolean;
 }
 
 export interface Room {
